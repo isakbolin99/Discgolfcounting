@@ -1,4 +1,17 @@
+/*
+Project Name: discgolfcounting
+Description: main code to upload to the microcontroller (arduino pro mini) controlling the system.
+Author: Isak Bolin
+Date: December 8, 2021
+
+This sketch controls the footfall counter by reading data from the ultrasonic sensor.
+Every hour it controls the NB-IoT module to send data to the cloud-based SQL-database.
+*/
+
+//Include libraries and declare variables
+
 //Interrupts
+//The PIR sensor is used to wake up the microcontroller from sleep mode to save power.
 #include "LowPower.h"
 #define PIRPin 2
 #define alarmPin 3
@@ -7,9 +20,9 @@ bool PIR = false;
 //Time
 #include <TimeLib.h>
 #include <DS3232RTC.h>
-int timme;
+int timme; //hour in swedish
 
-//JSN-sr04t
+//JSN-sr04t (Ultrasonic sensor)
 #define jsnPowerPin 4
 int trigPin = A3;
 int echoPin = A2;
@@ -31,14 +44,14 @@ int upCounter2Value = 15; //0.75s hold on reading after one person walks by.
 int upCounter1;
 int upCounter2;
 
-//SIM7020E
+//SIM7020E (NB-IoT module)
 #include <String.h>
 #include <SoftwareSerial.h>
 SoftwareSerial gprsSerial(8,9);
 #define PWRPin 7
 int simPowerPin = A1;
 
-//Temperature
+//Temperature (DS18B20)
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #define tempDataPin 5
@@ -61,7 +74,7 @@ int sendVoltage = 0;
 
 void setup() 
 {
-  sensors.begin();  //Start up Dallas library
+  sensors.begin();  //Startup Dallas library
   Serial.begin(9600);
   gprsSerial.begin(9600); //For SIM7020E communication
   
@@ -81,6 +94,7 @@ void setup()
   digitalWrite(tempPowerPin, LOW);
   digitalWrite(batteryPowerPin, LOW);
 
+  //Uncomment of you want to configure the time
    /*
     tmElements_t tm;
    // the next few lines set the clock to the correct hour, minute, and second.  Remember 24 hour format so 4pm = hour 16 
@@ -115,11 +129,19 @@ void setup()
   attachInterrupt(0, wakeUp0, RISING);
 }
 
+//The main loop just wait for an interrupt triggered from either the RTC module or the PIR sensor which means that a person is close by
 void loop() 
 {
   interrupt();
 }
 
+
+/*
+  Function: interrupt()
+  Description: Function that sets the alarm on the RTC and interrupt from the PIR sensor.
+  An interrupt can either be triggered on a regular base by the RTC or when a person is
+  nearby by a person.
+*/
 void interrupt()
 {
   RTC.setAlarm(ALM1_MATCH_MINUTES, 0, 0, 0, 0);
@@ -129,7 +151,8 @@ void interrupt()
   LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
   detachInterrupt(0);
   detachInterrupt(1);
- 
+
+  //Start to count people if the PIR sensor senses a person
   if (PIR == true)
   {
     counting();
@@ -138,23 +161,26 @@ void interrupt()
   timeRead(); 
 }
 
+/*
+  Function: wakeUp0
+  Description: ISR that runs after a PIR interrupt
+*/
 void wakeUp0()
 {
  PIR = true;
 }
 
-
-void wakeUp1()
-{
-}
-
-
+/*
+  Function: timeRead()
+  Description: Reads the time each time the microcontroller is woken up from
+  sleep mode. If there is a new hour, the battery voltage is measured, the
+  outside temperature is measured and the data is sent via the NB-IoT network.
+*/
 void timeRead()
 {
   time_t t;
   t = RTC.get(); 
  
-  
   if (timme != hour(t))
   {
     for (int i = 7; i <= 23; i++)
@@ -170,6 +196,11 @@ void timeRead()
   }
 }
 
+/*
+  Function: counting()
+  Description: Starts the ultrasonic sensor and counts the number of people
+  walking past the sensor based on the distance reading.
+*/
 void counting()
 {
   digitalWrite(jsnPowerPin, HIGH);
@@ -233,7 +264,10 @@ void counting()
   groupCount = 0;
 }
 
-
+/*
+  Function: sendData()
+  Description: Starts the NB-IoT module and sends data via CHPPT.
+*/
 void sendData()
 {
   digitalWrite(PWRPin, HIGH);
@@ -265,7 +299,11 @@ void sendData()
   count6 = 0;
 }
 
-
+*/
+  Function: measureTemp()
+  Description: Measures the outside temperature with the DS18B20 sensor.
+  5 temperature readings are taken during one second to output an average.
+*/
 void measureTemp()
 {
   digitalWrite(tempPowerPin, HIGH);
@@ -282,6 +320,10 @@ void measureTemp()
   tempValue = 0;
 }
 
+/*
+  Function: measureVoltage()
+  Description: Estimates the battery voltage by using an analog input on the arduino.
+*/
 void measureVoltage()
 {
   digitalWrite(batteryPowerPin, HIGH);
